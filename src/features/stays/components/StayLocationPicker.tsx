@@ -5,7 +5,11 @@ import { HiOutlineExclamationCircle } from "react-icons/hi2";
 import "leaflet/dist/leaflet.css";
 
 import { SpinnerMini } from "../../../ui/SpinnerMini/SpinnerMini";
-import { PlaceResult, reverseGeocode, searchPlaces } from "../services/geocoding";
+import {
+    PlaceResult,
+    reverseGeocode,
+    searchPlaces,
+} from "../services/geocoding";
 import { MAX_FIT_ZOOM, zoomForPlaceType } from "../utils/placeZoom";
 import { Label, TextInput } from "./StayFormLayout";
 import { media } from "../../../styles/breakpoints";
@@ -16,6 +20,32 @@ const MIN_QUERY_LENGTH = 3;
 const SEARCH_DEBOUNCE_MS = 300;
 /** Looser than search: this is confirmation after the map settles, not something staff wait on. */
 const REVERSE_DEBOUNCE_MS = 500;
+
+/**
+ * Browser-visible by design: a free-quota basemap key, not a secret. CARTO has watermarked keyless
+ * tiles with "API key required" since 2026-09-23 (docs.carto.com/faqs/carto-basemaps).
+ *
+ * Read through `import.meta.env`, not `process.env` — this is a Vite SPA, so `process` does not
+ * exist in the browser and touching it throws during render.
+ */
+const CARTO_API_KEY = import.meta.env.VITE_CARTO_API_KEY;
+
+/**
+ * CARTO Voyager tiles: OSMF's policy forbids production use of tile.openstreetmap.org, and Google
+ * needs billing. Keyless still renders, just watermarked, so a missing key never breaks the page.
+ * Leaflet fills {r} with "@2x" on retina screens.
+ */
+const TILE_URL = `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png${
+    CARTO_API_KEY ? `?key=${encodeURIComponent(CARTO_API_KEY)}` : ""
+}`;
+
+// Module scope so it warns once per page load, not on every render of the picker.
+if (!CARTO_API_KEY && import.meta.env.DEV) {
+    console.warn(
+        "VITE_CARTO_API_KEY is not set, so map tiles will carry CARTO's watermark. " +
+            "Get a free key at https://carto.com/basemaps/apikey/",
+    );
+}
 
 const Wrapper = styled.div`
     display: flex;
@@ -186,7 +216,11 @@ function ErrorText({ children }: { children: ReactNode }) {
 }
 
 /** Reports the map's centre — where the fixed pin points — once panning settles. */
-function ReportCenterOnMove({ onSettle }: { onSettle: (lat: number, lng: number) => void }) {
+function ReportCenterOnMove({
+    onSettle,
+}: {
+    onSettle: (lat: number, lng: number) => void;
+}) {
     const map = useMapEvents({
         moveend: () => {
             const { lat, lng } = map.getCenter();
@@ -328,10 +362,13 @@ export function StayLocationPicker({
             try {
                 const found = await searchPlaces(trimmed, controller.signal);
                 setResults(found);
-                if (found.length === 0) setSearchError("No places in Indonesia matched that");
+                if (found.length === 0)
+                    setSearchError("No places in Indonesia matched that");
             } catch (err) {
                 if (controller.signal.aborted) return;
-                setSearchError(err instanceof Error ? err.message : "Place search failed");
+                setSearchError(
+                    err instanceof Error ? err.message : "Place search failed",
+                );
             } finally {
                 if (!controller.signal.aborted) setIsSearching(false);
             }
@@ -354,7 +391,9 @@ export function StayLocationPicker({
         const controller = new AbortController();
         const timer = setTimeout(async () => {
             try {
-                setAddress(await reverseGeocode(pinLat, pinLng, controller.signal));
+                setAddress(
+                    await reverseGeocode(pinLat, pinLng, controller.signal),
+                );
             } catch {
                 setAddress("");
             }
@@ -424,10 +463,15 @@ export function StayLocationPicker({
                     {/* Wheel zoom stays off: this map sits inside a tall scrolling modal, and a
                         map that eats the wheel traps staff halfway down the form. Leaflet's +/−
                         buttons remain available for zooming. */}
-                    <MapContainer center={pin} zoom={16} scrollWheelZoom={false}>
-                        {/* CARTO, matching the customer site's map — no API key or billing. */}
+                    <MapContainer
+                        center={pin}
+                        zoom={16}
+                        scrollWheelZoom={false}
+                    >
+                        {/* CARTO, matching the customer site's map. Attribution must stay
+                            visible — it is a condition of CARTO's free tier. */}
                         <TileLayer
-                            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                            url={TILE_URL}
                             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                         />
                         <ReportCenterOnMove onSettle={onCoordinatesChange} />
@@ -440,8 +484,8 @@ export function StayLocationPicker({
                 </MapShell>
             ) : (
                 <EmptyMap>
-                    Start typing a place above, pick a suggestion, then drag the map to put the
-                    pin on the villa itself.
+                    Start typing a place above, pick a suggestion, then drag the
+                    map to put the pin on the villa itself.
                 </EmptyMap>
             )}
 

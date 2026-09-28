@@ -49,7 +49,7 @@ const Value = styled.p`
     font-weight: 500;
 `;
 
-// Size matches the h2 Heading used by SalesChart/DurationChart (2rem) — the old 1.3rem read
+// Size matches the h2 Heading used by SalesChart/TodayArrivalsSection (2rem) — the old 1.3rem read
 // as fine print next to those section headings. Weight kept lighter than the heading's 600
 // so the label doesn't compete with the big number above it.
 const Title = styled.h5`

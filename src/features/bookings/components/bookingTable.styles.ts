@@ -112,10 +112,28 @@ export const TableHeaderBar = styled(Grid)`
 
 // Each row is its own bordered card below tablet (stacked layout); reverts to a flat grid row
 // with only a bottom divider at tablet+ (original desktop look, unchanged).
+//
+// The whole row is the button that opens BookingDetailModal, so the affordance lives here
+// rather than on a child. It can't be wrapped in a <button>: at tablet+ each cell relies on
+// Field's display:contents to stay a direct grid item, and an extra element between the grid
+// and its cells collapses the 6-column layout. BookingRow puts role/tabIndex/onClick on this
+// element itself instead.
 export const TableRowItem = styled(Grid)`
     padding: 1.2rem 1.4rem;
     border: 1px solid var(--color-grey-100);
     border-radius: var(--border-radius-md);
+
+    cursor: pointer;
+    transition: background-color 0.2s;
+
+    &:hover {
+        background-color: var(--color-grey-50);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--color-brand-600);
+        outline-offset: -2px;
+    }
 
     &:not(:last-child) {
         margin-bottom: 0.8rem;

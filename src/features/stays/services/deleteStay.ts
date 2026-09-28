@@ -22,13 +22,23 @@ export const deleteStay = async (id: number): Promise<void> => {
     }
 
     if (images.length > 0) {
-        const { error: storageError } = await supabase.storage
+        const { data: removed, error: storageError } = await supabase.storage
             .from("stays")
             .remove(images.map((image) => image.storage_path));
 
         if (storageError) {
             console.error(storageError);
             throw new Error("server error, villa's photos could not be removed from storage");
+        }
+
+        // An RLS-blocked remove() returns no error, just fewer (often zero) removed objects.
+        // Stop before deleting the row, or the files lose the only record pointing at them.
+        // Fewer can also mean a file was already missing, which is still worth a look.
+        if (removed.length < images.length) {
+            console.error({ expected: images.length, removed: removed.length });
+            throw new Error(
+                "Some of the villa's photos could not be removed from storage — the villa was not deleted.",
+            );
         }
     }
 

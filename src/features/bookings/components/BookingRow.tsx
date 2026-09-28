@@ -1,8 +1,15 @@
 import styled from "styled-components";
-import { format, parseISO } from "date-fns";
 import { BookingRow as BookingRowData } from "../types/booking.types";
 import { maskPhone } from "../utils/maskPhone";
 import { CellLabel, Field, TableRowItem } from "./bookingTable.styles";
+import { Modal } from "../../../ui/Modal/Modal";
+import { BookingDetailModal } from "./BookingDetailModal";
+import {
+    StatusBadge,
+    formatDate,
+    formatStatusLabel,
+    statusStyleFor,
+} from "./bookingStatus";
 
 // Mirrors src/features/stays/components/StayRow.tsx's cell styling verbatim (font sizes,
 // colors, spacing) — only the content differs.
@@ -33,85 +40,100 @@ const MutedCell = styled(Cell)`
     color: var(--color-grey-400);
 `;
 
-// Same pill treatment as Stays' StatusBadge, parameterized by booking status text instead of
-// a ready/not-ready boolean. Colors mirror BookingRosterList.tsx's STATUS_TAG mapping.
-const STATUS_STYLES: Record<string, { color: string; background: string }> = {
-    confirmed: { color: "var(--color-blue-700)", background: "var(--color-blue-100)" },
-    checked_in: { color: "var(--color-green-700)", background: "var(--color-green-100)" },
-    checked_out: { color: "var(--color-silver-700)", background: "var(--color-silver-100)" },
-    cancelled: { color: "var(--color-red-700)", background: "var(--color-red-100)" },
-    no_show: { color: "var(--color-yellow-700)", background: "var(--color-yellow-100)" },
-};
-
-const StatusBadge = styled.span<{ $color: string; $background: string }>`
-    display: inline-flex;
-    align-items: center;
-    gap: 0.6rem;
-    width: fit-content;
-
-    padding: 0.5rem 1.1rem;
-    border-radius: 9999px;
-    font-size: 1.2rem;
-    font-weight: 600;
-
-    color: ${({ $color }) => $color};
-    background-color: ${({ $background }) => $background};
-`;
-
-const formatDate = (isoDate: string) => format(parseISO(isoDate), "d MMM yyyy");
-
 interface BookingRowProps {
     booking: BookingRowData;
 }
 
 export function BookingRow({ booking }: BookingRowProps) {
-    const statusStyle =
-        STATUS_STYLES[booking.status] ??
-        ({ color: "var(--color-grey-600)", background: "var(--color-grey-100)" } as const);
+    const statusStyle = statusStyleFor(booking.status);
 
     return (
-        <TableRowItem>
-            <GuestText>
-                <GuestName>{booking.guestName ?? "—"}</GuestName>
-                <GuestMeta>{maskPhone(booking.phoneCountryCode, booking.phone)}</GuestMeta>
-            </GuestText>
+        // Modal is provided per row (not per table) so the "booking-detail" window name
+        // doesn't collide across rows — each row gets its own open/close state, same as
+        // StayRow. Both Modal and Modal.Open render no DOM of their own (a context provider
+        // and a fragment), so TableRowItem stays the direct child of the table's row list and
+        // the grid is untouched.
+        <Modal>
+            <Modal.Open opens="booking-detail">
+                {(open: () => void) => (
+                    <TableRowItem
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Booking details for ${
+                            booking.guestName ?? "deleted guest"
+                        } at ${booking.stayName}`}
+                        onClick={open}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                                // Space would scroll the page; Enter would do nothing at all
+                                // on a div. Both have to be wired by hand here because the
+                                // grid rules out a real <button> (see bookingTable.styles.ts).
+                                event.preventDefault();
+                                open();
+                            }
+                        }}
+                    >
+                        <GuestText>
+                            <GuestName>{booking.guestName ?? "—"}</GuestName>
+                            {/* Masked here, full in the detail modal: a table row is visible
+                                to anyone glancing at the screen. */}
+                            <GuestMeta>
+                                {maskPhone(
+                                    booking.phoneCountryCode,
+                                    booking.phone,
+                                )}
+                            </GuestMeta>
+                        </GuestText>
 
-            <Field>
-                <CellLabel>Villa</CellLabel>
-                <Cell>{booking.stayName}</Cell>
-            </Field>
+                        <Field>
+                            <CellLabel>Villa</CellLabel>
+                            <Cell>{booking.stayName}</Cell>
+                        </Field>
 
-            <Field>
-                <CellLabel>Stay Dates</CellLabel>
-                <Cell>
-                    {formatDate(booking.startDate)} → {formatDate(booking.endDate)}
-                </Cell>
-            </Field>
+                        <Field>
+                            <CellLabel>Stay Dates</CellLabel>
+                            <Cell>
+                                {formatDate(booking.startDate)} →{" "}
+                                {formatDate(booking.endDate)}
+                            </Cell>
+                        </Field>
 
-            <Field>
-                <CellLabel>Nights</CellLabel>
-                {booking.numNights !== null ? (
-                    <Cell>{booking.numNights}</Cell>
-                ) : (
-                    <MutedCell>—</MutedCell>
+                        <Field>
+                            <CellLabel>Nights</CellLabel>
+                            {booking.numNights !== null ? (
+                                <Cell>{booking.numNights}</Cell>
+                            ) : (
+                                <MutedCell>—</MutedCell>
+                            )}
+                        </Field>
+
+                        <Field>
+                            <CellLabel>Total Price</CellLabel>
+                            {booking.totalPrice !== null ? (
+                                <Cell>
+                                    Rp{booking.totalPrice.toLocaleString("id-ID")}
+                                </Cell>
+                            ) : (
+                                <MutedCell>—</MutedCell>
+                            )}
+                        </Field>
+
+                        <Field>
+                            <CellLabel>Status</CellLabel>
+                            <StatusBadge
+                                $color={statusStyle.color}
+                                $background={statusStyle.background}
+                            >
+                                {formatStatusLabel(booking.status)}
+                            </StatusBadge>
+                        </Field>
+                    </TableRowItem>
                 )}
-            </Field>
+            </Modal.Open>
 
-            <Field>
-                <CellLabel>Total Price</CellLabel>
-                {booking.totalPrice !== null ? (
-                    <Cell>Rp{booking.totalPrice.toLocaleString("id-ID")}</Cell>
-                ) : (
-                    <MutedCell>—</MutedCell>
-                )}
-            </Field>
-
-            <Field>
-                <CellLabel>Status</CellLabel>
-                <StatusBadge $color={statusStyle.color} $background={statusStyle.background}>
-                    {booking.status.replace("_", " ")}
-                </StatusBadge>
-            </Field>
-        </TableRowItem>
+            <Modal.Window name="booking-detail">
+                {() => <BookingDetailModal booking={booking} />}
+            </Modal.Window>
+        </Modal>
     );
 }

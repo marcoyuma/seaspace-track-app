@@ -5,15 +5,14 @@ import { useTotalBookingsCount } from "../hooks/useTotalBookingsCount";
 import { useNewGuestsCount } from "../hooks/useNewGuestsCount";
 import Stats from "./Stats";
 import { SalesChart } from "./SalesChart";
-import { DurationChart } from "./DurationChart";
+import { TodayArrivalsSection } from "./TodayArrivalsSection";
 import { BookingCalendarSection } from "./BookingCalendarSection";
-import { isConfirmedStay } from "../types/dashboard.schema";
 import { media } from "../../../styles/breakpoints";
 
-// Below desktop, BookingCalendarSection and DurationChart don't have room to share a row
+// Below desktop, BookingCalendarSection and TodayArrivalsSection don't have room to share a row
 // (the calendar alone is capped at 32rem wide), so everything stacks full-width in document
 // order. The 4-column grid — and the grid-column spans that depend on it, set on
-// BookingCalendarSection/DurationChart/SalesChart themselves — only turns on at desktop.
+// BookingCalendarSection/TodayArrivalsSection/SalesChart themselves — only turns on at desktop.
 const StyledDashboardLayout = styled.div`
     display: flex;
     flex-direction: column;
@@ -42,8 +41,6 @@ function DashboardLayout() {
         return <Spinner />;
     }
 
-    const confirmedStays = (bookingFinancials ?? []).filter(isConfirmedStay);
-
     return (
         <StyledDashboardLayout>
             <Stats
@@ -52,7 +49,7 @@ function DashboardLayout() {
                 bookingFinancials={bookingFinancials}
             />
             <BookingCalendarSection />
-            <DurationChart confirmedStays={confirmedStays} />
+            <TodayArrivalsSection />
             <SalesChart bookingFinancials={bookingFinancials} numDays={numDays} />
         </StyledDashboardLayout>
     );

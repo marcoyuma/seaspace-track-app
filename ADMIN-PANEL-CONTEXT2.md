@@ -261,11 +261,12 @@ situs customer langsung lewat dashboard Supabase / SQL Editor. **Admin panel tid
 baris `staff` sendiri** — tidak ada policy INSERT untuk siapa pun. Kalau admin panel butuh staff
 baru, itu permintaan ke repo situs customer, bukan sesuatu yang bisa dilakukan sepihak dari sini.
 
-### Tiga fungsi
+### Empat fungsi
 
 | Fungsi                                         | Siapa boleh panggil                                                                                    | Mengembalikan                                                                                                                           | Yang sengaja TIDAK dikembalikan                          |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `admin_booking_roster(p_from date, p_to date)` | Sesi staf manapun                                                                                      | `booking_id, stay_name, guest_name, phone_country_code, phone, start_date, end_date, status` untuk booking yang overlap rentang tanggal | `nationality`, `avatar_path`                             |
+| `admin_booking_roster(p_from date, p_to date)` | Sesi staf manapun                                                                                      | `booking_id, stay_name, guest_name, phone_country_code, phone, start_date, end_date, status, num_guests, guest_notes, created_at, paid_at, cancelled_at` untuk booking yang overlap rentang tanggal | `nationality`, `avatar_path`, `access_code`              |
+| `admin_booking_access_code(p_booking_id)`      | Sesi staf manapun, setiap panggilan dicatat ke `public.admin_access_code_log` (siapa, booking mana, kapan) | `access_code` satu booking saja                                                                                                      | apa pun selain kode itu sendiri                          |
 | `admin_guest_nationality_stats()`              | Sesi staf manapun                                                                                      | `nationality, guest_count` teragregasi, nationality dengan < 5 guest digabung `'Other'`                                                 | nationality per-baris individu                           |
 | `admin_export_guests()`                        | Sesi staf manapun, setiap panggilan dicatat ke `public.admin_export_log` (siapa, kapan, berapa baris)  | `guest_id, full_name, phone_country_code, phone, nationality, created_at` untuk seluruh guests                                          | `avatar_path` — tidak pernah keluar lewat fungsi manapun |
 
@@ -276,6 +277,16 @@ kolomnya difilter, tapi join ke `bookings` yang membatasi _baris_-nya juga.
 **Pemanggil yang tidak berhak mendapat 0 baris, bukan error.** User login yang tidak punya baris
 di `public.staff` memanggil fungsi manapun di atas akan dapat hasil kosong — tangani itu di UI
 sebagai "tidak ada akses", bukan sebagai bug yang perlu di-debug.
+
+**`access_code` sengaja dipisah jadi fungsi sendiri, bukan satu kolom tambahan di roster.**
+Bukan karena staf tidak boleh melihatnya — mereka memang butuh (tamu kehilangan kode lalu
+menelepon), dan tool PMS di industri juga menampilkannya ke staf. Masalahnya ada di bentuk
+pengirimannya: `admin_booking_roster()` mengembalikan rentang tanggal sekaligus — tabel Bookings
+menarik satu rentang penuh, kalender dashboard menarik sebulan penuh — jadi satu kolom kode di
+sana berarti **seluruh kode dalam rentang ikut terkirim ke browser tiap page load** dan mengendap
+di cache React Query, termasuk untuk booking yang tidak pernah dibuka siapa pun. Karena Seaspace
+cuma punya satu tingkatan staf, tidak ada peran yang bisa dibatasi — jadi `admin_access_code_log`
+adalah satu-satunya kontrol yang tersisa, dan itu membuatnya penting, bukan sekadar formalitas.
 
 **`avatar_path` (foto profil tamu) tidak pernah tersedia untuk admin panel lewat jalur apa pun.**
 Tetap PII murni — ini keputusan sadar, bukan sesuatu yang lupa ditambahkan.
@@ -318,9 +329,10 @@ mekanisme identitas baru.
 Predikatnya cuma "ada baris di `public.staff`", tanpa cek tingkatan apa pun — daftar aksi
 lengkapnya di [Wewenang admin panel](#wewenang-admin-panel).
 
-Bucket `stays` ikut dibuka di migrasi yang sama (insert/update/delete untuk sesi staff, tanpa
-pembatasan folder per-user seperti bucket `guests` — foto villa milik tim, bukan milik satu
-pengunggah).
+Bucket `stays` dibuka di migrasi terpisah, `0021_admin_staff_stays_bucket_writes.sql`
+(insert/update/delete untuk sesi staff, tanpa pembatasan folder per-user seperti bucket
+`guests` — foto villa milik tim, bukan milik satu pengunggah). Sampai 0021 dijalankan, 0016
+hanya membuka tabel: villa berhasil dibuat tapi setiap upload foto ditolak RLS.
 
 ### Yang tetap belum beres: project ref admin panel
 
@@ -781,8 +793,24 @@ untuk menandai "verified review" — direncanakan tapi belum dibangun.
 berubah lewat fungsi `security definer` di situs customer atau cron per jam, tidak pernah lewat
 tulis baris langsung. `total_price` dan `num_nights` adalah **generated column** (dihitung
 Postgres, tidak bisa di-override). `access_code` (8 karakter hex, unique) adalah kode yang
-dipindai tamu untuk self check-in — kalau admin panel pernah perlu menampilkannya di dashboard,
-perlakukan seperti data sensitif ringan (siapa pun yang punya kode bisa check-in tanpa login).
+dipindai tamu untuk self check-in — perlakukan seperti data sensitif ringan (siapa pun yang punya
+kode bisa check-in tanpa login).
+
+Kolom lain yang **ada tapi sempat tidak tercatat di dokumen ini** (diverifikasi langsung ke
+project live, September 2026) — jangan menyimpulkan sebuah kolom tidak ada hanya karena tidak
+tertulis di sini:
+
+| Kolom          | Tipe          | Catatan                                                              |
+| -------------- | ------------- | -------------------------------------------------------------------- |
+| `num_guests`   | `smallint`    | Jumlah tamu yang dipesan. **Bukan `integer`** — fungsi yang mengembalikannya harus cast, kalau tidak error tiap dipanggil |
+| `guest_notes`  | `text`        | Teks bebas yang ditulis tamu saat checkout. Sering satu-satunya tempat permintaan kedatangan tercatat |
+| `paid_at`      | `timestamptz` | Kosong kalau belum dibayar                                            |
+| `cancelled_at` | `timestamptz` | Kosong kalau tidak dibatalkan                                         |
+
+Kelimanya (bersama `created_at`) dibuka ke admin panel lewat `admin_booking_roster()` di
+`0019_admin_booking_roster_guest_details.sql`. Kolom `observations` dan `numGuests` yang terlihat
+di `src/supabase/types/database.types.ts` dan `features/check-in-out/` **bukan bagian skema
+Seaspace** — itu sisa skema demo wild-oasis yang lama.
 
 ---
 
@@ -866,8 +894,12 @@ Ini juga berlaku saat menghapus **villa**: `stay_images` ikut terhapus otomatis
 sebelum menghapus barisnya, atau folder `{slug}/` akan tertinggal selamanya tanpa ada baris
 yang menunjukkan keberadaannya.
 
-Sesi staff sudah boleh menghapus dan mengganti file di bucket `stays` sejak
-`0015_staff_catalog_writes.sql` — sebelumnya bucket ini hanya punya policy baca.
+Sesi staff boleh mengunggah, mengganti, dan menghapus file di bucket `stays` sejak
+`0021_admin_staff_stays_bucket_writes.sql` — sebelumnya bucket ini hanya punya policy baca.
+Policy bucket lama dari repo situs customer memanggil `public.is_staff(min_role)`; fungsi itu
+membaca `staff.role` yang dihapus `0018`, sehingga Storage membalas 503
+`DatabaseSchemaMismatch`. `0022_is_staff_membership_only.sql` menulis ulang body-nya menjadi
+cek keanggotaan saja.
 
 ### Upload sekarang batch di admin panel — dan status 1-gambar sudah dicek aman
 

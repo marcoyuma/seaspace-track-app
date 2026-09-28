@@ -26,7 +26,7 @@ export const DateRangeBadge = styled.button`
     white-space: nowrap;
 
     &:hover {
-        border-color: var(--color-brand-600);
+        border-color: red;
     }
 
     & svg {

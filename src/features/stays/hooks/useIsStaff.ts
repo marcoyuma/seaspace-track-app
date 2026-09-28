@@ -29,7 +29,9 @@ export const useIsStaff = () => {
 
             if (error) {
                 console.error(error);
-                throw new Error("server error, staff status could not be checked");
+                throw new Error(
+                    "server error, staff status could not be checked",
+                );
             }
 
             return data;

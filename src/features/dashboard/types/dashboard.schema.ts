@@ -3,7 +3,12 @@ import { safeString } from "../../../shared/utils/helpers";
 
 // Return shape of public.admin_booking_roster(p_from, p_to) — see
 // ADMIN-PANEL-CONTEXT.md § "Akses baca staf ke data guest". Deliberately does NOT
-// include total_price/num_nights/nationality/avatar_path.
+// include total_price/num_nights/nationality/avatar_path/access_code.
+//
+// The guest-detail fields below arrived in 0019. They're `.optional()` as well as
+// `.nullable()` on purpose: a frontend deploy that lands before the migration is applied
+// gets rows without those keys at all, and a plain `.nullable()` would fail the parse and
+// blank out the whole Bookings page. Optional lets them arrive undefined and render as "—".
 export const bookingRosterRowSchema = z.object({
     booking_id: z.number(),
     stay_name: z.string(),
@@ -13,6 +18,11 @@ export const bookingRosterRowSchema = z.object({
     start_date: z.string(),
     end_date: z.string(),
     status: safeString("unknown"),
+    num_guests: z.number().nullable().optional(),
+    guest_notes: z.string().nullable().optional(),
+    created_at: z.string().nullable().optional(),
+    paid_at: z.string().nullable().optional(),
+    cancelled_at: z.string().nullable().optional(),
 });
 
 export type BookingRosterRow = z.infer<typeof bookingRosterRowSchema>;
@@ -21,8 +31,8 @@ export const bookingRosterSchema = z.array(bookingRosterRowSchema);
 
 // Return shape of public.admin_booking_financials(p_from, p_to) — see
 // 0015_admin_staff_booking_financials.sql. Filtered by created_at, never joins
-// public.guests. Feeds Stats/SalesChart/DurationChart (restored to their original meaning,
-// just re-sourced from the Seaspace schema).
+// public.guests. Feeds Stats/SalesChart (restored to their original meaning, just re-sourced
+// from the Seaspace schema).
 export const bookingFinancialRowSchema = z.object({
     booking_id: z.number(),
     stay_id: z.number(),

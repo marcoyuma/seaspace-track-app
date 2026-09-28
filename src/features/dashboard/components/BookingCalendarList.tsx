@@ -1,7 +1,8 @@
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import styled from "styled-components";
 import { HiOutlineUser } from "react-icons/hi2";
 import { BookingRosterRow } from "../types/dashboard.schema";
+import { nightsBetween } from "../../bookings/utils/nightsBetween";
 
 const ListWrapper = styled.div`
     display: flex;
@@ -120,16 +121,6 @@ interface BookingCalendarListProps {
     selectedDate: Date;
 }
 
-// admin_booking_roster() doesn't return num_nights (that only comes from
-// admin_booking_financials, which uses different created_at-based filtering) — derive it
-// client-side the same way the real generated column is computed.
-function nightsFor(row: BookingRosterRow): number {
-    return differenceInCalendarDays(
-        parseISO(row.end_date),
-        parseISO(row.start_date),
-    );
-}
-
 /**
  * Bookings active on `selectedDate` — receives already filtered + sorted rows from
  * BookingCalendarSection. Guest avatar is a generic icon, never a real photo: avatar_path is
@@ -159,7 +150,9 @@ export function BookingCalendarList({
                                     <GuestName>{row.guest_name}</GuestName>
                                 </GuestRow>
                             </BookingInfo>
-                            <NightsBadge>{nightsFor(row)}</NightsBadge>
+                            <NightsBadge>
+                                {nightsBetween(row.start_date, row.end_date)}
+                            </NightsBadge>
                         </BookingItem>
                     ))}
                 </ListBox>

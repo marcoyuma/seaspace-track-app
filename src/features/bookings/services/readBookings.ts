@@ -56,6 +56,11 @@ export const readBookings = async (from: Date, to: Date): Promise<BookingRow[]> 
             status: entry.status,
             numNights: null,
             totalPrice: null,
+            numGuests: entry.num_guests ?? null,
+            guestNotes: entry.guest_notes ?? null,
+            createdAt: entry.created_at ?? null,
+            paidAt: entry.paid_at ?? null,
+            cancelledAt: entry.cancelled_at ?? null,
         });
     }
 
@@ -69,6 +74,9 @@ export const readBookings = async (from: Date, to: Date): Promise<BookingRow[]> 
         if (existing) {
             existing.numNights = entry.num_nights;
             existing.totalPrice = entry.total_price;
+            // Only fills the gap left by a pre-0019 roster response; a roster row that
+            // already carried created_at wins, since both come from the same column.
+            existing.createdAt ??= entry.created_at;
             continue;
         }
 
@@ -83,6 +91,14 @@ export const readBookings = async (from: Date, to: Date): Promise<BookingRow[]> 
             status: entry.status,
             numNights: entry.num_nights,
             totalPrice: entry.total_price,
+            // Financials never joins public.guests, so nothing guest-supplied is available
+            // here. A row that only exists on this side is a booking whose guest account was
+            // deleted (roster inner-joins guests) — it renders as "—", not as an error.
+            numGuests: null,
+            guestNotes: null,
+            createdAt: entry.created_at,
+            paidAt: null,
+            cancelledAt: null,
         });
     }
 
