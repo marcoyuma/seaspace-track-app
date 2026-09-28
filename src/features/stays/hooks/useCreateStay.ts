@@ -73,8 +73,13 @@ export const useCreateStay = () => {
                 toast.dismiss("create-stay-progress");
 
                 if (failedFiles.length > 0) {
+                    // Surface Storage's own wording: a count alone hid that every failure was
+                    // the same policy error (is_staff() reading a dropped column, fixed in 0022).
+                    const reasons = [
+                        ...new Set(failedFiles.map((file) => file.error)),
+                    ].join("; ");
                     throw new Error(
-                        `Villa "${createdStay.name}" was created, but ${failedFiles.length} photo(s) failed to upload — reopen this villa to finish adding photos.`,
+                        `Villa "${createdStay.name}" was created, but ${failedFiles.length} photo(s) failed to upload (${reasons}) — reopen this villa to finish adding photos.`,
                     );
                 }
 
