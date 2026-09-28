@@ -346,8 +346,11 @@ export type Database = {
         };
         Functions: {
             // Returns front-desk roster rows for bookings overlapping [p_from, p_to].
-            // Deliberately omits total_price/num_nights/nationality/avatar_path — see
-            // ADMIN-PANEL-CONTEXT.md § "Akses baca staf ke data guest".
+            // Deliberately omits total_price/num_nights/nationality/avatar_path and
+            // access_code — see ADMIN-PANEL-CONTEXT.md § "Akses baca staf ke data guest"
+            // and 0020_admin_booking_access_code.sql for why the code is fetched one row
+            // at a time instead. Guest-supplied detail (num_guests, guest_notes) and the
+            // lifecycle timestamps arrived in 0019.
             admin_booking_roster: {
                 Args: { p_from: string; p_to: string };
                 Returns: {
@@ -359,6 +362,11 @@ export type Database = {
                     start_date: string;
                     end_date: string;
                     status: string;
+                    num_guests: number | null;
+                    guest_notes: string | null;
+                    created_at: string;
+                    paid_at: string | null;
+                    cancelled_at: string | null;
                 }[];
             };
             // Filtered by created_at (not start/end date overlap) — a "Last N days"
@@ -383,6 +391,15 @@ export type Database = {
             admin_new_guests_count: {
                 Args: { p_from: string; p_to: string };
                 Returns: number;
+            };
+            // One booking's self check-in code, and every call is written to
+            // public.admin_access_code_log. Kept out of admin_booking_roster on purpose:
+            // that one returns whole date ranges, so a code column there would cache every
+            // code in range in the browser. Returns null for a non-staff caller (and logs
+            // nothing). See 0020_admin_booking_access_code.sql.
+            admin_booking_access_code: {
+                Args: { p_booking_id: number };
+                Returns: string | null;
             };
         };
         Enums: {

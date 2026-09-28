@@ -29,11 +29,19 @@ Tidak ada kolom `role`, tidak ada tier di atas atau di bawah — lihat
   menulisnya lewat fungsi `security definer`. Kalau suatu hari admin perlu membuat booking
   manual, itu butuh fungsi `security definer` baru yang disetujui dulu di repo situs customer,
   bukan jalan pintas menulis baris langsung.
-- **Ada satu pengecualian baca-saja.** Tiga fungsi `security definer` —
-  `admin_booking_roster()`, `admin_guest_nationality_stats()`, `admin_export_guests()` — memberi
-  sesi staf yang sah jalur baca terbatas ke data guest untuk layar Bookings dan
-  Check-in. Jangan pernah `SELECT * FROM public.guests` langsung. Larangan **menulis** ke
-  `guests`/`reviews`/`bookings` tidak berubah sedikit pun.
+- **Ada satu pengecualian baca-saja.** Empat fungsi `security definer` —
+  `admin_booking_roster()`, `admin_guest_nationality_stats()`, `admin_export_guests()`,
+  `admin_booking_access_code()` — memberi sesi staf yang sah jalur baca terbatas ke data guest
+  untuk layar Bookings dan Check-in. Jangan pernah `SELECT * FROM public.guests` langsung.
+  Larangan **menulis** ke `guests`/`reviews`/`bookings` tidak berubah sedikit pun.
+- **`access_code` diambil satu baris sekali, dan selalu dicatat.** Kode self check-in tidak
+  pernah ikut `admin_booking_roster()` — fungsi itu mengembalikan rentang tanggal sekaligus,
+  jadi satu kolom kode di sana berarti seluruh kode dalam rentang ikut mengendap di cache
+  browser untuk booking yang tidak pernah dibuka siapa pun. Ambil lewat
+  `admin_booking_access_code(p_booking_id)`, yang menulis satu baris ke
+  `public.admin_access_code_log` tiap kali dipanggil. Karena cuma ada satu tingkatan staf,
+  log itulah satu-satunya kontrol yang tersisa — jangan dilewati, dan jangan menaruh kodenya
+  di URL. Lihat `0020_admin_booking_access_code.sql`.
 - **Jangan pernah menaruh service role key di repo ini.** Ini SPA murni tanpa server runtime —
   tidak ada tempat menyembunyikan secret, dan Vite akan meng-inline-nya ke bundle browser. Key
   itu mem-bypass seluruh RLS, jadi justru ia opsi paling berbahaya di app tanpa server.
